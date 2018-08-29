@@ -6,7 +6,7 @@ package context
 import (
 	"time"
 
-	"github.com/Akagi201/esalert/search"
+	"github.com/tengattack/esalert/search"
 )
 
 // Context describes information about an alert it accumulates through its

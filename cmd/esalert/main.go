@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Akagi201/esalert/alert"
-	"github.com/Akagi201/esalert/config"
 	log "github.com/sirupsen/logrus"
+	"github.com/tengattack/esalert/alert"
+	"github.com/tengattack/esalert/config"
 	yaml "gopkg.in/yaml.v2"
 )
 

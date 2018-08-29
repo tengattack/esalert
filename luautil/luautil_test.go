@@ -8,11 +8,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Akagi201/esalert/context"
-	"github.com/Akagi201/esalert/luautil"
 	lua "github.com/Shopify/go-lua"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tengattack/esalert/context"
+	"github.com/tengattack/esalert/luautil"
 )
 
 func testLuaState() *lua.State {

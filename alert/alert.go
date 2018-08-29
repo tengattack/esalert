@@ -7,12 +7,12 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Akagi201/esalert/action"
-	"github.com/Akagi201/esalert/context"
-	"github.com/Akagi201/esalert/luautil"
-	"github.com/Akagi201/esalert/search"
 	"github.com/Akagi201/utilgo/jobber"
 	log "github.com/sirupsen/logrus"
+	"github.com/tengattack/esalert/action"
+	"github.com/tengattack/esalert/context"
+	"github.com/tengattack/esalert/luautil"
+	"github.com/tengattack/esalert/search"
 	yaml "gopkg.in/yaml.v2"
 )
 

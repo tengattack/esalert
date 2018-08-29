@@ -3,9 +3,9 @@ package search_test
 import (
 	"testing"
 
-	"github.com/Akagi201/esalert/search"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tengattack/esalert/search"
 	yaml "gopkg.in/yaml.v2"
 )
 

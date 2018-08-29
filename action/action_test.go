@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Akagi201/esalert/action"
-	"github.com/Akagi201/esalert/context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tengattack/esalert/action"
+	"github.com/tengattack/esalert/context"
 )
 
 func TestToActioner(t *testing.T) {

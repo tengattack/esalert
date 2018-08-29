@@ -9,8 +9,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/Akagi201/esalert/config"
 	log "github.com/sirupsen/logrus"
+	"github.com/tengattack/esalert/config"
 )
 
 // Hit describes one of the documents matched by a search

@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Akagi201/esalert/config"
-	"github.com/Akagi201/esalert/context"
 	"github.com/mitchellh/mapstructure"
 	log "github.com/sirupsen/logrus"
+	"github.com/tengattack/esalert/config"
+	"github.com/tengattack/esalert/context"
 )
 
 // Actioner describes an action type. There all multiple action types, but they

@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Akagi201/esalert/config"
-	"github.com/Akagi201/esalert/context"
 	lua "github.com/Shopify/go-lua"
 	log "github.com/sirupsen/logrus"
+	"github.com/tengattack/esalert/config"
+	"github.com/tengattack/esalert/context"
 )
 
 // LuaRunner performs some arbitrary lua code. The code can either be sourced from a

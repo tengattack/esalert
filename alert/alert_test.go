@@ -3,11 +3,11 @@ package alert_test
 import (
 	"testing"
 
-	"github.com/Akagi201/esalert/alert"
-	"github.com/Akagi201/esalert/context"
-	"github.com/Akagi201/esalert/search"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tengattack/esalert/alert"
+	"github.com/tengattack/esalert/context"
+	"github.com/tengattack/esalert/search"
 	yaml "gopkg.in/yaml.v2"
 )
 
