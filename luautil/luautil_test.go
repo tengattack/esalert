@@ -8,16 +8,15 @@ import (
 	"reflect"
 	"testing"
 
-	lua "github.com/Shopify/go-lua"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tengattack/esalert/context"
 	"github.com/tengattack/esalert/luautil"
+	lua "github.com/yuin/gopher-lua"
 )
 
-func testLuaState() *lua.State {
+func testLuaState() *lua.LState {
 	l := lua.NewState()
-	lua.OpenLibraries(l)
 	return l
 }
 
@@ -35,7 +34,9 @@ func TestPullArbitrary(t *testing.T) {
 			g = {},
 		}
 	`)
-	require.Nil(t, l.Load(b, "", "bt"))
+	fn, err := l.Load(b, "")
+	require.Nil(t, err)
+	l.Push(fn)
 	l.Call(0, 1)
 	i := luautil.PullArbitraryValue(l, true)
 	assert.Equal(t, map[string]interface{}{
@@ -50,20 +51,22 @@ func TestPullArbitrary(t *testing.T) {
 	}, i)
 }
 
-func testPushFrom(t *testing.T, f func(*lua.State, reflect.Value), i interface{}, code string) {
+func testPushFrom(t *testing.T, f func(*lua.LState, reflect.Value) lua.LValue, i interface{}, code string) {
 	l := testLuaState()
-	initialStackSize := l.Top()
+	initialStackSize := l.GetTop()
 
-	f(l, reflect.ValueOf(i))
-	l.SetGlobal("ctx")
-	assert.Equal(t, initialStackSize, l.Top())
+	v := f(l, reflect.ValueOf(i))
+	l.SetGlobal("ctx", v)
+	assert.Equal(t, initialStackSize, l.GetTop())
 
 	b := bytes.NewBufferString(code)
-	require.Nil(t, l.Load(b, "", "bt"))
+	fn, err := l.Load(b, "")
+	require.Nil(t, err)
+	l.Push(fn)
 	l.Call(0, 1)
-	assert.True(t, l.ToBoolean(-1))
+	assert.True(t, l.ToBool(-1))
 	l.Remove(-1)
-	assert.Equal(t, initialStackSize, l.Top())
+	assert.Equal(t, initialStackSize, l.GetTop())
 }
 
 func TestTableFromStruct(t *testing.T) {

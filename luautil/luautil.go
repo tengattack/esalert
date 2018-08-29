@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	lua "github.com/Shopify/go-lua"
 	log "github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
 	"github.com/tengattack/esalert/context"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // LuaRunner performs some arbitrary lua code. The code can either be sourced from a
@@ -75,7 +75,7 @@ func RunFile(ctx context.Context, filename string) (interface{}, bool) {
 
 type runner struct {
 	id int // solely used to tell lua vms apart in logs
-	l  *lua.State
+	l  *lua.LState
 
 	// Set of files and inline functions hashes already in the global namespace
 	m map[string]bool
@@ -89,7 +89,6 @@ func init() {
 
 func newRunner(i int) {
 	l := lua.NewState()
-	lua.OpenLibraries(l)
 	r := runner{
 		id: i,
 		l:  l,
@@ -120,9 +119,16 @@ func (r *runner) spin() {
 		if err != nil {
 			initKV["err"] = err
 			log.WithFields(initKV).Fatalln("error initializing lua vm")
+		} else {
+			if err = r.l.CallByParam(lua.P{
+				Fn:      r.l.GetGlobal(initFnName),
+				NRet:    0,
+				Protect: false,
+			}); err != nil {
+				initKV["err"] = err
+				log.WithFields(initKV).Fatalln("error initializing lua vm")
+			}
 		}
-		r.l.Global(initFnName)
-		r.l.Call(0, 0)
 	}
 
 	for c := range cmdCh {
@@ -145,10 +151,17 @@ func (r *runner) spin() {
 		kv["fnName"] = fnName
 		log.WithFields(kv).Debugln("executing lua")
 
-		pushArbitraryValue(r.l, c.ctx)           // push ctx onto the stack
-		r.l.SetGlobal("ctx")                     // set global variable "ctx" to ctx, pops it from stack
-		r.l.Global(fnName)                       // push function onto stack
-		r.l.Call(0, 1)                           // call function, pops function from stack, pushes return
+		val := pushArbitraryValue(r.l, c.ctx) // push ctx onto the stack
+		r.l.SetGlobal("ctx", val)             // set global variable "ctx" to ctx, pops it from stack
+		// push function onto stack
+		// call function, pops function from stack, pushes return
+		if err = r.l.CallByParam(lua.P{
+			Fn:      r.l.GetGlobal(fnName),
+			NRet:    1,
+			Protect: false,
+		}); err != nil {
+			log.WithFields(kv).Fatalln("error executing lua")
+		}
 		c.retCh <- PullArbitraryValue(r.l, true) // send back the function return, also popping it
 		// stack is now clean
 	}
@@ -171,10 +184,11 @@ func (r *runner) loadFile(name string) (string, error) {
 	}
 	defer f.Close()
 
-	if err := r.l.Load(f, name, "bt"); err != nil {
+	var fn *lua.LFunction
+	if fn, err = r.l.Load(f, name); err != nil {
 		return "", err
 	}
-	r.l.SetGlobal(key)
+	r.l.SetGlobal(key, fn)
 
 	r.m[key] = true
 	return key, nil
@@ -191,10 +205,12 @@ func (r *runner) loadInline(code string) (string, error) {
 		"inline":   shortInline(code),
 		"fnName":   key,
 	}).Debugln("loading lua inline")
-	if err := r.l.Load(bytes.NewBufferString(code), key, "bt"); err != nil {
+
+	fn, err := r.l.Load(bytes.NewBufferString(code), key)
+	if err != nil {
 		return "", err
 	}
-	r.l.SetGlobal(key)
+	r.l.SetGlobal(key, fn)
 
 	r.m[key] = true
 	return key, nil
@@ -206,33 +222,33 @@ func quickSha(s string) string {
 	return hex.EncodeToString(sh.Sum(nil))
 }
 
-func PullArbitraryValue(l *lua.State, remove bool) interface{} {
+func PullArbitraryValue(l *lua.LState, remove bool) interface{} {
 	if remove {
 		defer l.Remove(-1)
 	}
-	switch t := l.TypeOf(-1); t {
-	case lua.TypeNil:
-		return nil
-	case lua.TypeBoolean:
-		return l.ToBoolean(-1)
-	case lua.TypeNumber:
-		i, _ := l.ToInteger(-1)
-		f, _ := l.ToNumber(-1)
-		if f == float64(int(f)) {
-			return i
-		}
-		return f
-	case lua.TypeString:
-		s, _ := l.ToString(-1)
-		return s
-	case lua.TypeTable:
-		m := map[string]interface{}{}
-		arrSize := 0
-		l.PushNil() // Next pops a value off the stack, so we add a dummy
-		for l.Next(-2) {
-			val := PullArbitraryValue(l, true)
-			key := PullArbitraryValue(l, false)
+	return pullArbitraryValueInner(l, l.Get(-1))
+}
 
+func pullArbitraryValueInner(l *lua.LState, v lua.LValue) interface{} {
+	switch t := v.Type(); t {
+	case lua.LTNil:
+		return nil
+	case lua.LTBool:
+		return lua.LVAsBool(v)
+	case lua.LTNumber:
+		f := lua.LVAsNumber(v)
+		if float64(f) == float64(int(f)) {
+			return int(f)
+		}
+		return float64(f)
+	case lua.LTString:
+		return lua.LVAsString(v)
+	case lua.LTTable:
+		m := map[string]interface{}{}
+		tb := v.(*lua.LTable)
+		arrSize := 0
+		tb.ForEach(func(k, val lua.LValue) {
+			key := pullArbitraryValueInner(l, k)
 			if keyi, ok := key.(int); ok {
 				if arrSize >= 0 && arrSize < keyi {
 					arrSize = keyi
@@ -241,9 +257,8 @@ func PullArbitraryValue(l *lua.State, remove bool) interface{} {
 			} else {
 				arrSize = -1
 			}
-
-			m[key.(string)] = val
-		}
+			m[key.(string)] = pullArbitraryValueInner(l, val)
+		})
 
 		if arrSize >= 0 {
 			ms := make([]interface{}, arrSize)
@@ -259,57 +274,56 @@ func PullArbitraryValue(l *lua.State, remove bool) interface{} {
 	}
 }
 
-func pushArbitraryValue(l *lua.State, i interface{}) {
+func pushArbitraryValue(l *lua.LState, i interface{}) lua.LValue {
 	if i == nil {
-		l.PushNil()
-		return
+		return lua.LNil
 	}
 
 	switch ii := i.(type) {
 	case bool:
-		l.PushBoolean(ii)
+		return lua.LBool(ii)
 	case int:
-		l.PushInteger(ii)
+		return lua.LNumber(ii)
 	case int8:
-		l.PushInteger(int(ii))
+		return lua.LNumber(ii)
 	case int16:
-		l.PushInteger(int(ii))
+		return lua.LNumber(ii)
 	case int32:
-		l.PushInteger(int(ii))
+		return lua.LNumber(ii)
 	case int64:
-		l.PushInteger(int(ii))
+		return lua.LNumber(ii)
 	case uint:
-		l.PushUnsigned(ii)
+		return lua.LNumber(ii)
 	case uint8:
-		l.PushUnsigned(uint(ii))
+		return lua.LNumber(ii)
 	case uint16:
-		l.PushUnsigned(uint(ii))
+		return lua.LNumber(ii)
 	case uint32:
-		l.PushUnsigned(uint(ii))
+		return lua.LNumber(ii)
 	case uint64:
-		l.PushUnsigned(uint(ii))
+		return lua.LNumber(ii)
 	case float64:
-		l.PushNumber(ii)
+		return lua.LNumber(ii)
 	case float32:
-		l.PushNumber(float64(ii))
+		return lua.LNumber(ii)
 	case string:
-		l.PushString(ii)
+		return lua.LString(ii)
 	case []byte:
-		l.PushString(string(ii))
+		return lua.LString(ii)
 	default:
 		v := reflect.ValueOf(i)
 		switch v.Kind() {
 		case reflect.Ptr:
-			pushArbitraryValue(l, v.Elem().Interface())
+			return pushArbitraryValue(l, v.Elem().Interface())
 
 		case reflect.Struct:
-			PushTableFromStruct(l, v)
+			return PushTableFromStruct(l, v)
 
 		case reflect.Map:
-			PushTableFromMap(l, v)
+			return PushTableFromMap(l, v)
 
 		case reflect.Slice:
-			PushTableFromSlice(l, v)
+			return PushTableFromSlice(l, v)
 
 		default:
 			panic(fmt.Sprintf("unknown type being pushed onto lua stack: %T %+v", i, i))
@@ -317,12 +331,12 @@ func pushArbitraryValue(l *lua.State, i interface{}) {
 	}
 }
 
-func PushTableFromStruct(l *lua.State, v reflect.Value) {
-	l.NewTable()
-	pushTableFromStructInner(l, v)
+func PushTableFromStruct(l *lua.LState, v reflect.Value) lua.LValue {
+	tb := l.NewTable()
+	return pushTableFromStructInner(l, tb, v)
 }
 
-func pushTableFromStructInner(l *lua.State, v reflect.Value) {
+func pushTableFromStructInner(l *lua.LState, tb *lua.LTable, v reflect.Value) lua.LValue {
 	t := v.Type()
 	for j := 0; j < v.NumField(); j++ {
 		var inline bool
@@ -339,29 +353,28 @@ func pushTableFromStructInner(l *lua.State, v reflect.Value) {
 			}
 		}
 		if inline {
-			pushTableFromStructInner(l, v.Field(j))
+			pushTableFromStructInner(l, tb, v.Field(j))
 		} else {
-			pushArbitraryValue(l, name)
-			pushArbitraryValue(l, v.Field(j).Interface())
-			l.SetTable(-3)
+			tb.RawSetString(name, pushArbitraryValue(l, v.Field(j).Interface()))
 		}
 	}
+	return tb
 }
 
-func PushTableFromMap(l *lua.State, v reflect.Value) {
-	l.NewTable()
+func PushTableFromMap(l *lua.LState, v reflect.Value) lua.LValue {
+	tb := l.NewTable()
 	for _, k := range v.MapKeys() {
-		pushArbitraryValue(l, k.Interface())
-		pushArbitraryValue(l, v.MapIndex(k).Interface())
-		l.SetTable(-3)
+		tb.RawSet(pushArbitraryValue(l, k.Interface()),
+			pushArbitraryValue(l, v.MapIndex(k).Interface()))
 	}
+	return tb
 }
 
-func PushTableFromSlice(l *lua.State, v reflect.Value) {
-	l.NewTable()
+func PushTableFromSlice(l *lua.LState, v reflect.Value) lua.LValue {
+	tb := l.NewTable()
 	for j := 0; j < v.Len(); j++ {
-		pushArbitraryValue(l, j+1) // because lua is 1-indexed
-		pushArbitraryValue(l, v.Index(j).Interface())
-		l.SetTable(-3)
+		tb.RawSetInt(j+1, // because lua is 1-indexed
+			pushArbitraryValue(l, v.Index(j).Interface()))
 	}
+	return tb
 }
