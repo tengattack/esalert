@@ -6,15 +6,20 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 
+	"github.com/BixData/gluasocket"
+	"github.com/cjoudrey/gluahttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
 	"github.com/tengattack/esalert/context"
+	"github.com/tengattack/gluasql"
 	lua "github.com/yuin/gopher-lua"
+	gluajson "layeh.com/gopher-json"
 )
 
 // LuaRunner performs some arbitrary lua code. The code can either be sourced from a
@@ -89,6 +94,13 @@ func init() {
 
 func newRunner(i int) {
 	l := lua.NewState()
+
+	// Preload modules
+	gluasocket.Preload(l)
+	gluasql.Preload(l)
+	l.PreloadModule("http", gluahttp.NewHttpModule(&http.Client{}).Loader)
+	gluajson.Preload(l)
+
 	r := runner{
 		id: i,
 		l:  l,
