@@ -9,8 +9,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
+	"github.com/tengattack/tgo/log"
 )
 
 // Hit describes one of the documents matched by a search
@@ -106,7 +107,7 @@ func Search(index, typ string, search interface{}) (Result, error) {
 		return Result{}, err
 	}
 
-	log.WithFields(log.Fields{
+	log.LogAccess.WithFields(logrus.Fields{
 		"body": string(bodyReq),
 	}).Debugln("search query")
 
@@ -132,14 +133,14 @@ func Search(index, typ string, search interface{}) (Result, error) {
 		return Result{}, err
 	}
 
-	log.WithFields(log.Fields{
+	log.LogAccess.WithFields(logrus.Fields{
 		"body": string(body),
 	}).Debugln("search results")
 
 	if resp.StatusCode != 200 {
 		var e elasticError
 		if err := json.Unmarshal(body, &e); err != nil {
-			log.Errorf("could not unmarshal error body, %v", err)
+			log.LogError.Errorf("could not unmarshal error body, %v", err)
 			return Result{}, err
 		}
 		return Result{}, errors.New(fmt.Sprintf("HTTP status code: %v", resp.StatusCode))
@@ -147,7 +148,7 @@ func Search(index, typ string, search interface{}) (Result, error) {
 
 	var result Result
 	if err := json.Unmarshal(body, &result); err != nil {
-		log.WithFields(log.Fields{
+		log.LogError.WithFields(logrus.Fields{
 			"body": string(body),
 		}).Errorf("could not unmarshal search result, %v", err)
 		return result, err

@@ -3,27 +3,29 @@
 package config
 
 import (
+	"io/ioutil"
+	"path"
 	"runtime"
-	"strings"
-	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/Akagi201/utilgo/conflag"
 	flags "github.com/jessevdk/go-flags"
-	log "github.com/sirupsen/logrus"
+	"github.com/tengattack/tgo/log"
 )
 
 // Opts configs
 var Opts struct {
-	Conf              string `long:"conf" description:"esalert config file"`
-	AlertFileDir      string `long:"alerts" short:"a" required:"true" description:"A yaml file, or directory with yaml files, containing alert definitions"`
-	ElasticSearchAddr string `long:"es-addr" default:"127.0.0.1:9200" description:"Address to find an elasticsearch instance on"`
-	ElasticSearchUser string `long:"es-user" default:"elastic" description:"Username for the elasticsearch"`
-	ElasticSearchPass string `long:"es-pass" default:"changeme" description:"Password for the elasticsearch"`
-	LuaInit           string `long:"lua-init" description:"If set the given lua script file will be executed at the initialization of every lua vm"`
-	LuaVMs            int    `long:"lua-vms" default:"1" description:"How many lua vms should be used. Each vm is completely independent of the other, and requests are executed on whatever vm is available at that moment. Allows lua scripts to not all be blocked on the same os thread"`
-	SlackWebhook      string `long:"slack-webhook" description:"Slack webhook url, required if using any Slack actions"`
-	ForceRun          string `long:"force-run" description:"If set with the name of an alert, will immediately run that alert and exit. Useful for testing changes to alert definitions"`
-	LogLevel          string `long:"log-level" default:"info" description:"Adjust the log level. Valid options are: error, warn, info, debug"`
+	Conf              string     `long:"conf" description:"esalert config file"`
+	AlertFileDir      string     `yaml:"alerts" long:"alerts" short:"a" required:"true" description:"A yaml file, or directory with yaml files, containing alert definitions"`
+	ElasticSearchAddr string     `yaml:"es-addr" long:"es-addr" default:"127.0.0.1:9200" description:"Address to find an elasticsearch instance on"`
+	ElasticSearchUser string     `yaml:"es-user" long:"es-user" default:"elastic" description:"Username for the elasticsearch"`
+	ElasticSearchPass string     `yaml:"es-pass" long:"es-pass" default:"changeme" description:"Password for the elasticsearch"`
+	LuaInit           string     `yaml:"lua-init" long:"lua-init" description:"If set the given lua script file will be executed at the initialization of every lua vm"`
+	LuaVMs            int        `yaml:"lua-vms" long:"lua-vms" default:"1" description:"How many lua vms should be used. Each vm is completely independent of the other, and requests are executed on whatever vm is available at that moment. Allows lua scripts to not all be blocked on the same os thread"`
+	SlackWebhook      string     `yaml:"slack-webhook" long:"slack-webhook" description:"Slack webhook url, required if using any Slack actions"`
+	ForceRun          string     `yaml:"force-run" long:"force-run" description:"If set with the name of an alert, will immediately run that alert and exit. Useful for testing changes to alert definitions"`
+	Log               log.Config `yaml:"log" long:"log" description:"logging options"`
 }
 
 func init() {
@@ -36,26 +38,37 @@ func init() {
 	parser.Parse()
 
 	if Opts.Conf != "" {
-		conflag.LongHyphen = true
-		conflag.BoolValue = false
-		args, err := conflag.ArgsFrom(Opts.Conf)
-		if err != nil {
-			panic(err)
+		switch path.Ext(Opts.Conf) {
+		case ".yaml", ".yml":
+			f, err := ioutil.ReadFile(Opts.Conf)
+			if err != nil {
+				panic(err)
+			}
+			err = yaml.Unmarshal(f, &Opts)
+			if err != nil {
+				panic(err)
+			}
+		default:
+			conflag.LongHyphen = true
+			conflag.BoolValue = false
+			args, err := conflag.ArgsFrom(Opts.Conf)
+			if err != nil {
+				panic(err)
+			}
+
+			parser.ParseArgs(args)
 		}
-
-		parser.ParseArgs(args)
 	}
 
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: time.RFC3339,
-	})
-	level, err := log.ParseLevel(strings.ToLower(Opts.LogLevel))
-	if err == nil {
-		log.SetLevel(level)
-	} else {
-		log.Errorf("invalid log level: %s", Opts.LogLevel)
+	if Opts.Log.AccessLevel == "" || Opts.Log.ErrorLevel == "" {
+		// Load default logging configuration
+		Opts.Log = *log.DefaultConfig
 	}
 
-	log.Infof("esalert opts: %+v", Opts)
+	err := log.InitLog(&Opts.Log)
+	if err != nil {
+		panic(err)
+	}
+
+	log.LogAccess.Debugf("esalert opts: %+v", Opts)
 }

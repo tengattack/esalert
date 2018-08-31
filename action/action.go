@@ -11,9 +11,10 @@ import (
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
 	"github.com/tengattack/esalert/context"
+	"github.com/tengattack/tgo/log"
 )
 
 // Actioner describes an action type. There all multiple action types, but they
@@ -68,7 +69,7 @@ type Log struct {
 
 // Do logs the Log's message. It doesn't actually need any context
 func (l *Log) Do(_ context.Context) error {
-	log.WithFields(log.Fields{
+	log.LogAccess.WithFields(logrus.Fields{
 		"message": l.Message,
 	}).Infoln("doing log action")
 	return nil

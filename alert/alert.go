@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/Akagi201/utilgo/jobber"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/action"
 	"github.com/tengattack/esalert/context"
 	"github.com/tengattack/esalert/luautil"
 	"github.com/tengattack/esalert/search"
+	"github.com/tengattack/tgo/log"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -77,10 +78,10 @@ func (a *Alert) Init() error {
 }
 
 func (a Alert) Run() {
-	kv := log.Fields{
+	kv := logrus.Fields{
 		"name": a.Name,
 	}
-	log.WithFields(kv).Infoln("running alert")
+	log.LogAccess.WithFields(kv).Infoln("running alert")
 
 	now := time.Now()
 	c := context.Context{
@@ -92,23 +93,23 @@ func (a Alert) Run() {
 	searchIndex, searchType, searchQuery, err := a.CreateSearch(c)
 	if err != nil {
 		kv["err"] = err
-		log.WithFields(kv).Errorln("failed to create search data")
+		log.LogError.WithFields(kv).Errorln("failed to create search data")
 		return
 	}
 
-	log.WithFields(kv).Debugln("running search step")
+	log.LogAccess.WithFields(kv).Debugln("running search step")
 	res, err := search.Search(searchIndex, searchType, searchQuery)
 	if err != nil {
 		kv["err"] = err
-		log.WithFields(kv).Errorln("failed at search step")
+		log.LogError.WithFields(kv).Errorln("failed at search step")
 		return
 	}
 	c.Result = res
 
-	log.WithFields(kv).Debugln("running process step")
+	log.LogAccess.WithFields(kv).Debugln("running process step")
 	processRes, ok := a.Process.Do(c)
 	if !ok {
-		log.WithFields(kv).Errorln("failed at process step")
+		log.LogError.WithFields(kv).Errorln("failed at process step")
 		return
 	}
 
@@ -116,7 +117,7 @@ func (a Alert) Run() {
 	// []interface{}, which has a length of 0, so either way this works
 	actionsRaw, _ := processRes.([]interface{})
 	if len(actionsRaw) == 0 {
-		log.WithFields(kv).Debugln("no actions returned")
+		log.LogAccess.WithFields(kv).Debugln("no actions returned")
 	}
 
 	actions := make([]action.Action, len(actionsRaw))
@@ -124,7 +125,7 @@ func (a Alert) Run() {
 		a, err := action.ToActioner(actionsRaw[i])
 		if err != nil {
 			kv["err"] = err
-			log.WithFields(kv).Errorln("error unpacking action")
+			log.LogError.WithFields(kv).Errorln("error unpacking action")
 			return
 		}
 		actions[i] = a
@@ -132,10 +133,10 @@ func (a Alert) Run() {
 
 	for i := range actions {
 		kv["action"] = actions[i].Type
-		log.WithFields(kv).Infoln("performing action")
+		log.LogAccess.WithFields(kv).Infoln("performing action")
 		if err := actions[i].Do(c); err != nil {
 			kv["err"] = err
-			log.WithFields(kv).Errorln("failed to complete action")
+			log.LogError.WithFields(kv).Errorln("failed to complete action")
 			return
 		}
 	}

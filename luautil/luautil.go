@@ -14,10 +14,11 @@ import (
 
 	"github.com/BixData/gluasocket"
 	"github.com/cjoudrey/gluahttp"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
 	"github.com/tengattack/esalert/context"
 	"github.com/tengattack/gluasql"
+	"github.com/tengattack/tgo/log"
 	lua "github.com/yuin/gopher-lua"
 	gluajson "layeh.com/gopher-json"
 )
@@ -117,20 +118,20 @@ func shortInline(code string) string {
 }
 
 func (r *runner) spin() {
-	kv := log.Fields{
+	kv := logrus.Fields{
 		"runnerID": r.id,
 	}
-	log.WithFields(kv).Debugln("initializing lua vm")
+	log.LogAccess.WithFields(kv).Debugln("initializing lua vm")
 
 	if config.Opts.LuaInit != "" {
-		initKV := log.Fields{
+		initKV := logrus.Fields{
 			"runnerID": r.id,
 			"filename": config.Opts.LuaInit,
 		}
 		initFnName, err := r.loadFile(config.Opts.LuaInit)
 		if err != nil {
 			initKV["err"] = err
-			log.WithFields(initKV).Fatalln("error initializing lua vm")
+			log.LogError.WithFields(initKV).Fatalln("error initializing lua vm")
 		} else {
 			if err = r.l.CallByParam(lua.P{
 				Fn:      r.l.GetGlobal(initFnName),
@@ -138,7 +139,7 @@ func (r *runner) spin() {
 				Protect: false,
 			}); err != nil {
 				initKV["err"] = err
-				log.WithFields(initKV).Fatalln("error initializing lua vm")
+				log.LogError.WithFields(initKV).Fatalln("error initializing lua vm")
 			}
 		}
 	}
@@ -155,13 +156,13 @@ func (r *runner) spin() {
 		}
 		if err != nil {
 			kv["err"] = err
-			log.WithFields(kv).Errorln("error loading lua")
+			log.LogError.WithFields(kv).Errorln("error loading lua")
 			close(c.retCh)
 			continue
 		}
 
 		kv["fnName"] = fnName
-		log.WithFields(kv).Debugln("executing lua")
+		log.LogAccess.WithFields(kv).Debugln("executing lua")
 
 		val := pushArbitraryValue(r.l, c.ctx) // push ctx onto the stack
 		r.l.SetGlobal("ctx", val)             // set global variable "ctx" to ctx, pops it from stack
@@ -172,7 +173,7 @@ func (r *runner) spin() {
 			NRet:    1,
 			Protect: false,
 		}); err != nil {
-			log.WithFields(kv).Fatalln("error executing lua")
+			log.LogError.WithFields(kv).Fatalln("error executing lua")
 		}
 		c.retCh <- PullArbitraryValue(r.l, true) // send back the function return, also popping it
 		// stack is now clean
@@ -185,7 +186,7 @@ func (r *runner) loadFile(name string) (string, error) {
 		return key, nil
 	}
 
-	log.WithFields(log.Fields{
+	log.LogAccess.WithFields(logrus.Fields{
 		"runnerID": r.id,
 		"filename": name,
 		"fnName":   key,
@@ -212,7 +213,7 @@ func (r *runner) loadInline(code string) (string, error) {
 		return key, nil
 	}
 
-	log.WithFields(log.Fields{
+	log.LogAccess.WithFields(logrus.Fields{
 		"runnerID": r.id,
 		"inline":   shortInline(code),
 		"fnName":   key,

@@ -6,16 +6,17 @@ import (
 	"path/filepath"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/alert"
 	"github.com/tengattack/esalert/config"
+	"github.com/tengattack/tgo/log"
 	yaml "gopkg.in/yaml.v2"
 )
 
 func main() {
 	fstat, err := os.Stat(config.Opts.AlertFileDir)
 	if err != nil {
-		log.WithFields(log.Fields{
+		log.LogError.WithFields(logrus.Fields{
 			"err": err,
 		}).Fatalln("failed getting alert definitions")
 	}
@@ -26,7 +27,7 @@ func main() {
 	} else {
 		fileInfos, err := ioutil.ReadDir(config.Opts.AlertFileDir)
 		if err != nil {
-			log.WithFields(log.Fields{
+			log.LogError.WithFields(logrus.Fields{
 				"err": err,
 			}).Fatalln("failed getting alert dir info")
 		}
@@ -38,27 +39,27 @@ func main() {
 	}
 
 	for _, file := range files {
-		kv := log.Fields{
+		kv := logrus.Fields{
 			"file": file,
 		}
 		var alerts []alert.Alert
 		b, err := ioutil.ReadFile(file)
 		if err != nil {
 			kv["err"] = err
-			log.WithFields(kv).Fatalln("failed to read alert config")
+			log.LogError.WithFields(kv).Fatalln("failed to read alert config")
 		}
 
 		if err := yaml.Unmarshal(b, &alerts); err != nil {
 			kv["err"] = err
-			log.WithFields(kv).Fatalln("failed to parse yaml")
+			log.LogError.WithFields(kv).Fatalln("failed to parse yaml")
 		}
 
 		for i := range alerts {
 			kv["name"] = alerts[i].Name
-			log.WithFields(kv).Infoln("initializing alert")
+			log.LogAccess.WithFields(kv).Infoln("initializing alert")
 			if err := alerts[i].Init(); err != nil {
 				kv["err"] = err
-				log.WithFields(kv).Fatalln("failed to initialize alert")
+				log.LogError.WithFields(kv).Fatalln("failed to initialize alert")
 			}
 
 			if config.Opts.ForceRun != "" && config.Opts.ForceRun == alerts[i].Name {
@@ -74,7 +75,7 @@ func main() {
 	// If we made it this far with --force-run set to something it means an
 	// alert by that name was never found, so we should error
 	if config.Opts.ForceRun != "" {
-		log.Errorln("could not find alert with name given by --force-run")
+		log.LogError.Errorln("could not find alert with name given by --force-run")
 		os.Exit(1)
 	}
 
