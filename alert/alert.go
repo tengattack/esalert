@@ -97,14 +97,16 @@ func (a Alert) Run() {
 		return
 	}
 
-	log.LogAccess.WithFields(kv).Debugln("running search step")
-	res, err := search.Search(searchIndex, searchType, searchQuery)
-	if err != nil {
-		kv["err"] = err
-		log.LogError.WithFields(kv).Errorln("failed at search step")
-		return
+	if searchIndex != "" {
+		log.LogAccess.WithFields(kv).Debugln("running search step")
+		res, err := search.Search(searchIndex, searchType, searchQuery)
+		if err != nil {
+			kv["err"] = err
+			log.LogError.WithFields(kv).Errorln("failed at search step")
+			return
+		}
+		c.Result = res
 	}
-	c.Result = res
 
 	log.LogAccess.WithFields(kv).Debugln("running process step")
 	processRes, ok := a.Process.Do(c)
