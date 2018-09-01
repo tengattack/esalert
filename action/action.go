@@ -46,7 +46,8 @@ func ToActioner(in interface{}) (Action, error) {
 	typ = strings.ToLower(typ)
 	switch typ {
 	case "log":
-		a = &Log{}
+		delete(min, "type")
+		a = &Log{Fields: min}
 	case "http":
 		a = &HTTP{}
 	case "slack":
@@ -65,13 +66,14 @@ func ToActioner(in interface{}) (Action, error) {
 // testing alerts and you don't want to set up any actions yet
 type Log struct {
 	Message string `mapstructure:"message"`
+	Fields  map[string]interface{}
 }
 
 // Do logs the Log's message. It doesn't actually need any context
 func (l *Log) Do(_ context.Context) error {
-	log.LogAccess.WithFields(logrus.Fields{
-		"message": l.Message,
-	}).Infoln("doing log action")
+	kv := logrus.Fields(l.Fields)
+	kv["message"] = l.Message
+	log.LogAccess.WithFields(kv).Infoln("doing log action")
 	return nil
 }
 

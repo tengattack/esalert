@@ -1,0 +1,12 @@
+- name: alert_empty
+  interval: "*/5 * * * * *"
+  # it won't do search but process without search_index
+  process:
+    lua_inline: |
+      return {
+        {
+          type = "log",
+          message = "Performing action for empty alert",
+          name = ctx.Name,
+        }
+      }
