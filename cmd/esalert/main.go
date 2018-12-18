@@ -13,7 +13,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var (
+	// Version of esalert
+	Version = "1.0.0-dev"
+)
+
 func main() {
+	log.LogAccess.Infof("starting esalert %s", Version)
 	fstat, err := os.Stat(config.Opts.AlertFileDir)
 	if err != nil {
 		log.LogError.WithFields(logrus.Fields{
