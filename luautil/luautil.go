@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/BixData/gluasocket"
+	"github.com/nubix-io/gluasocket"
 	"github.com/cjoudrey/gluahttp"
 	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
