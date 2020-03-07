@@ -1,12 +1,12 @@
 NAME=esalert
-VERSION=1.0.0
+VERSION=1.0.1
 REGISTRY_PREFIX=$(if $(REGISTRY),$(addsuffix /, $(REGISTRY)))
 
 .PHONY: build update
 
 build:
 	docker build --build-arg version=${VERSION} \
-		--build-arg go_get_http_proxy=${GO_GET_HTTP_PROXY} \
+		--build-arg proxy=${BUILD_HTTP_PROXY} \
 		-t ${NAME}:${VERSION} .
 
 publish:
