@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nubix-io/gluasocket"
 	"github.com/cjoudrey/gluahttp"
+	_ "github.com/lib/pq"
+	"github.com/nubix-io/gluasocket"
 	"github.com/sirupsen/logrus"
 	"github.com/tengattack/esalert/config"
 	"github.com/tengattack/esalert/context"
